@@ -1,0 +1,197 @@
+# Configure a default setup of Home Assistant (frontend, api, etc)
+default_config:
+
+# Favicon and title
+favicon:
+  title: Casita
+  icon_path: /local/favicons/
+
+# Logs
+logger:
+  default: warning
+  # logs:
+  #   custom_components.webrtc: debug
+
+# Custom recorder with mariaDB
+recorder:
+  auto_purge: false
+  db_url: !env_var MARIADB_CONNECTION_STRING
+
+# Frontend configuration
+frontend:
+  themes: !include_dir_merge_named themes
+  extra_module_url:
+    - /hacsfiles/lovelace-card-mod/card-mod.js
+
+# https://github.com/thomasloven/hass-lovelace_gen
+lovelace_gen:
+
+# WakeOnLan functionality for supported devices
+wake_on_lan:
+switch:
+  platform: wake_on_lan
+  name: lg_wol
+  mac: !secret  mac_lg_tv
+    
+# Text to speech
+tts:
+  - platform: google_translate
+
+# Imports
+automation: !include automations.yaml
+#automation: !include_dir_merge_list automations
+script: !include scripts.yaml
+scene: !include scenes.yaml
+alarm_control_panel: !include config_files/alarm.yaml
+
+# Telegram configuration
+telegram_bot:
+  - platform: polling
+    parse_mode: html
+    api_key: !secret telegram_bot_api_key
+    allowed_chat_ids:
+      - !secret telegram_bot_allowed_chat_id
+
+# Notify
+notify:
+  - platform: group
+    name: jose_noe
+    services:
+      - service: mobile_app_cph2449
+      - service: mobile_app_galaxy_watch4_classic_9p2d
+      - service: mobile_app_iphone_de_noelia
+      - service: mobile_app_ipad_de_noelia
+  - platform: telegram
+    name: TELEGRAM_CASITA
+    chat_id: !secret telegram_chat_id
+
+# Trusted proxies configuration
+http:
+  use_x_forwarded_for: true
+  trusted_proxies: !secret trusted_proxies
+
+###########
+# Custom sensors and devices
+###########
+
+# Zigbee2mqtt latest release sensor
+command_line:
+  - sensor:
+      command: python3 -c "import requests; print(requests.get('https://api.github.com/repos/Koenkk/zigbee2mqtt/releases/latest').json()['tag_name'])"
+      name: Zigbee2MQTT Latest Release
+      icon: mdi:package
+      scan_interval: 3600
+
+# Xiaomi fan
+fan:
+  - platform: xiaomi_miio_fan
+    name: Xiaomi Smart Standing Fan 2 Pro
+    model: dmaker.fan.p33
+    host: !secret ip_xiaomi_fan
+    token: !secret xiaomi_token
+
+# Custom template sensors
+template:
+  - sensor:
+    - name: "Tiempo restante lavavajillas"
+      unique_id: "sensor.manuela_lavavajillas_formatted_remaining_time"
+      icon: "mdi:clock"
+      state: >
+        {% set f = states('sensor.manuelalavavajillas_remaining_program_time') %}
+        {% if f is none or f == 'unavailable' %}
+          unavailable
+        {% else %}
+          {{ (as_timestamp(strptime(f, '%H:%M:%S')) - now()) | timestamp_custom('%H:%M:%S', false) }}
+        {% endif %}
+  - binary_sensor:
+    - name: "Lavadora ON"
+      unique_id: "sensor.lavadora_running"
+      icon: "mdi:washing-machine"
+      state: >
+        {% set power = states('sensor.enchufe_lavadora_power') | float(0) %}
+        {% if power is none or power == 'unavailable' or power == 0 %}
+          off
+        {% else %}
+          on
+        {% endif %}
+  - trigger:
+      - platform: state
+        entity_id: binary_sensor.contacto_cubo_scoth_contact
+        to: "on"
+    sensor:
+      - name: ultima_comida_scoth
+        state: "{{ now().isoformat() }}"
+        device_class: timestamp
+  - sensor:
+      - name: devices_with_very_low_battery
+        unit_of_measurement: devices
+        state: >-
+          {{ states.sensor
+            | selectattr('attributes.device_class', 'eq', 'battery')
+            | rejectattr('entity_id', 'in', integration_entities('mobile_app'))
+            | map(attribute='state')
+            | reject('in', ['unknown', 'unavailable', 'Ok'])
+            | map('int', -1) 
+            | select('le', 10)
+            | list | count
+          }}
+        icon: >-
+          {% if is_state('sensor.devices_with_very_low_battery', '0') %}
+            mdi:check-circle
+          {% else %}
+            mdi:battery-alert
+          {% endif %}
+      - name: devices_with_low_battery
+        unit_of_measurement: devices
+        state: >-
+          {{ states.sensor
+            | selectattr('attributes.device_class', 'eq', 'battery')
+            | rejectattr('entity_id', 'in', integration_entities('mobile_app'))
+            | map(attribute='state')
+            | reject('in', ['unknown', 'unavailable', 'Ok'])
+            | map('int', -1) 
+            | select('le', 25)
+            | list | count
+          }}
+        icon: >-
+          {% if is_state('sensor.devices_with_low_battery', '0') %}
+            mdi:check-circle
+          {% else %}
+            mdi:battery-low
+          {% endif %}
+
+# Sensor to keep track of daily energy
+utility_meter:
+  daily_energy:
+    source: sensor.shelly_em_channel_1_energy
+    name: consumption_daily
+    cycle: daily
+
+# Sensor to keep track of the amount of time the window of the main bedroom
+# is open daily
+sensor:
+  - platform: history_stats
+    name: Tiempo ventilado
+    entity_id: binary_sensor.ventana_habitacion_contact
+    state: "on"
+    type: time
+    start: "{{ now().replace(hour=0, minute=0, second=0) }}"
+    end: "{{ now() }}"
+  
+
+# Dashboard configuration
+lovelace:
+  mode: storage
+  dashboards:
+    lovelace-yaml:
+      mode: yaml
+      title: Floorplan
+      icon: mdi:map
+      show_in_sidebar: true
+      filename: lovelace/floorplan.yaml
+    lovelace-home:
+      mode: yaml
+      title: Home
+      icon: mdi:home
+      show_in_sidebar: true
+      filename: lovelace/main.yaml
