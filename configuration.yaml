@@ -74,13 +74,32 @@ http:
 # Custom sensors and devices
 ###########
 
-# Zigbee2mqtt latest release sensor
 command_line:
+  # Zigbee2mqtt latest release sensor
   - sensor:
       command: python3 -c "import requests; print(requests.get('https://api.github.com/repos/Koenkk/zigbee2mqtt/releases/latest').json()['tag_name'])"
       name: Zigbee2MQTT Latest Release
       icon: mdi:package
       scan_interval: 3600
+  # Immich latest release
+  - sensor:
+      command: python3 -c "import requests; print(requests.get('https://api.github.com/repos/immich-app/immich/releases/latest').json()['tag_name'])"
+      name: Immich Latest Release
+      icon: mdi:image
+      scan_interval: 3600
+  # Immich current version
+  - sensor:
+      command: >
+        python3 -c "import os; import requests; 
+        immich_url=os.getenv('IMMICH_VERSION_URL');
+        immich_apikey=os.getenv('IMMICH_APIKEY');
+        headers = {'x-api-key': immich_apikey};
+        response = requests.get(immich_url, headers=headers);
+        print(response.json()['version'])"
+      name: Immich current version
+      icon: mdi:image
+      scan_interval: 3600
+  
 
 # Xiaomi fan
 fan:
