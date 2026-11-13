@@ -14,7 +14,17 @@ svg.i{width:1em;height:1em;display:block;fill:currentColor;flex:none}
 .mid{grid-row:2;display:flex;flex-direction:column;align-items:center}
 #clock{font-size:min(13.5vw,21.5vh);font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.03em}
 #clock .c{font-size:.7em;font-weight:300;opacity:.6;display:inline-block;vertical-align:.12em;padding:0 .02em}
-#clock .s{opacity:.45}
+/* Birthday colours fade in digit by digit: --p goes 0 -> 1 on #clock, each digit starts a bit later (--k) */
+@property --p{syntax:'<number>';inherits:true;initial-value:0}
+#clock{transition:--p 5s ease-in-out}
+#clock .d0{--c:#ffb020;--k:0}
+#clock .d1{--c:#ff6b8b;--k:1}
+#clock .d2{--c:#7ad3ff;--k:2}
+#clock .d3{--c:#b98cff;--k:3}
+#clock .d4{--c:#7be3a1;--k:4}
+#clock .d5{--c:#ffb020;--k:5}
+#clock [class^="d"]{color:color-mix(in srgb,var(--c) calc(clamp(0,var(--p) * 2 - var(--k) * .2,1) * 100%),#fff)}
+#clock .s{opacity:calc(.45 + .35 * var(--p))}
 #date{font-size:min(2.4vw,3.8vh);font-weight:500;opacity:.85;margin-top:.5em}
 .wx{display:flex;align-items:center;gap:.5em;margin-top:1.4em;font-size:min(1.7vw,2.7vh);line-height:1.6em;opacity:.85}
 .wx svg.i{width:1.6em;height:1.6em;color:rgba(255,255,255,.85)}
@@ -36,24 +46,22 @@ svg.i{width:1em;height:1em;display:block;fill:currentColor;flex:none}
 .cal .mas{color:rgba(255,255,255,.5);padding-top:.15em;font-size:.9em}
 #avisos{grid-row:3;align-self:end;width:min(90vw,1100px);padding-bottom:6vh;display:flex;flex-direction:column;gap:1vh}
 .fx{position:absolute;inset:0;z-index:0;pointer-events:none;display:none;overflow:hidden}
-.fx b{position:absolute;top:0;animation:fall linear infinite}
-@keyframes fall{from{transform:translateY(-6vh)}to{transform:translateY(106vh)}}
+.fx b{position:absolute;top:0;animation:fall linear infinite backwards}
+@keyframes fall{from{transform:translateY(-16vh)}to{transform:translateY(106vh)}}
 .fx i{display:block;animation:sway ease-in-out infinite alternate}
 @keyframes sway{from{transform:translateX(calc(-1 * var(--x))) rotate(0deg) rotateX(0deg)}to{transform:translateX(var(--x)) rotate(var(--r)) rotateX(180deg)}}
-.fl{display:none;align-items:center;gap:.45em;font-size:min(3.4vw,5.4vh);font-weight:700;color:#ffb020;margin:.35em 0 .1em}
+/* Greeting: opens up below the clock (the clock glides up instead of jumping), then fades and rises into place */
+.fl{display:flex;align-items:center;gap:.45em;font-size:min(3.4vw,5.4vh);font-weight:700;color:#ffb020;line-height:1.25;max-height:0;margin:0;opacity:0;transform:translateY(.6em) scale(.96);overflow:hidden;transition:max-height 1.2s ease-in-out,margin 1.2s ease-in-out,opacity 1.4s ease-out .9s,transform 1.4s cubic-bezier(.2,.8,.2,1) .9s}
 .fl svg.i{width:1.1em;height:1.1em}
 .mid,#avisos{position:relative;z-index:1}
 .bd .fx{display:block}
-.bd .fl{display:flex}
+.bd .fl{max-height:1.6em;margin:.35em 0 .1em;opacity:1;transform:none}
+/* Already a birthday when the screensaver opens: show everything at once, no entrance */
+.instant #clock,.instant .fl{transition:none!important}
+.bd #clock{--p:1}
 /* Noe's birthday: dog stickers fall with the confetti, swaying and tilting instead of spinning */
 .fx b.dog i{background:center/contain no-repeat;animation-name:swaydog}
 @keyframes swaydog{from{transform:translateX(calc(-1 * var(--x))) rotate(calc(-1 * var(--rd)))}to{transform:translateX(var(--x)) rotate(var(--rd))}}
-.bd #clock .d0,.bd #clock .d5{color:#ffb020}
-.bd #clock .d1{color:#ff6b8b}
-.bd #clock .d2{color:#7ad3ff}
-.bd #clock .d3{color:#b98cff}
-.bd #clock .d4{color:#7be3a1}
-.bd #clock .s{opacity:.8}
 /* Data fades in when it arrives or changes */
 .in{animation:fadein .3s ease-out}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
@@ -79,7 +87,7 @@ svg.i{width:1em;height:1em;display:block;fill:currentColor;flex:none}
   </div>
   <div id="avisos"></div>
 </div>
-<div id="beta">Beta 7</div>
+<!-- <div id="beta">Beta 10</div> -->
 <script>
 (() => {
   // ---- Configuration -------------------------------------------------------
@@ -143,28 +151,38 @@ svg.i{width:1em;height:1em;display:block;fill:currentColor;flex:none}
     b.style.left = dogX(Math.random()).toFixed(1) + '%';
     b.firstElementChild.style.backgroundImage = `url(${DOGS[dogNext++ % DOGS.length]})`;
   });
-  const confetti = (dogs) => {
+  const confetti = (dogs, entrance) => {
     let sd = 7; const r = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
     const C = ['#ffb020', '#ff6b8b', '#7ad3ff', '#b98cff', '#7be3a1']; let o = '';
     for (let i = 0; i < (dogs ? 38 : 44); i++) {
       const x = r() * 100; const w = r() < .55; const z = .55 + r() * .6; const fd = 9 + r() * 9;
-      o += `<b style="left:${x.toFixed(1)}%;animation-duration:${fd.toFixed(1)}s;animation-delay:-${(r() * fd).toFixed(1)}s"><i style="width:${(w ? z * .45 : z).toFixed(2)}vw;height:${(w ? z * 1.1 : z).toFixed(2)}vw;background:${C[i % 5]};border-radius:${w ? '2px' : '50%'};opacity:${(.55 + r() * .35).toFixed(2)};--r:${Math.round(300 + r() * 420)}deg;--x:${(1 + r() * 2.5).toFixed(1)}vw;animation-duration:${(1.4 + r() * 1.8).toFixed(1)}s;animation-delay:-${(r() * 3).toFixed(1)}s"></i></b>`;
+      o += `<b style="left:${x.toFixed(1)}%;animation-duration:${fd.toFixed(1)}s;animation-delay:${entrance ? (r() * 10).toFixed(1) : '-' + (r() * fd).toFixed(1)}s"><i style="width:${(w ? z * .45 : z).toFixed(2)}vw;height:${(w ? z * 1.1 : z).toFixed(2)}vw;background:${C[i % 5]};border-radius:${w ? '2px' : '50%'};opacity:${(.55 + r() * .35).toFixed(2)};--r:${Math.round(300 + r() * 420)}deg;--x:${(1 + r() * 2.5).toFixed(1)}vw;animation-duration:${(1.4 + r() * 1.8).toFixed(1)}s;animation-delay:-${(r() * 3).toFixed(1)}s"></i></b>`;
     }
     // Dogs: 5 slots on the side bands (never over the clock), slower than the confetti.
     // Each time a slot leaves the screen it comes back with the next dog, so all of them take turns.
     if (dogs) for (let i = 0; i < DOG_SLOTS; i++) {
       const fd = 20 + r() * 8;
-      o += `<b class="dog" style="left:${dogX(r()).toFixed(1)}%;animation-duration:${fd.toFixed(1)}s;animation-delay:-${(fd * (i + r() * .6) / DOG_SLOTS).toFixed(1)}s"><i style="width:${(4.2 + r() * 1.6).toFixed(2)}vw;height:${(4.2 + r() * 1.6).toFixed(2)}vw;background-image:url(${DOGS[dogNext++ % DOGS.length]});--rd:${Math.round(8 + r() * 14)}deg;--x:${(.8 + r() * 1.5).toFixed(1)}vw;animation-duration:${(2.5 + r() * 2).toFixed(1)}s;animation-delay:-${(r() * 3).toFixed(1)}s"></i></b>`;
+      o += `<b class="dog" style="left:${dogX(r()).toFixed(1)}%;animation-duration:${fd.toFixed(1)}s;animation-delay:${entrance ? (3 + i * 4 + r() * 2).toFixed(1) : '-' + (fd * (i + r() * .6) / DOG_SLOTS).toFixed(1)}s"><i style="width:${(4.2 + r() * 1.6).toFixed(2)}vw;height:${(4.2 + r() * 1.6).toFixed(2)}vw;background-image:url(${DOGS[dogNext++ % DOGS.length]});--rd:${Math.round(8 + r() * 14)}deg;--x:${(.8 + r() * 1.5).toFixed(1)}vw;animation-duration:${(2.5 + r() * 2).toFixed(1)}s;animation-delay:-${(r() * 3).toFixed(1)}s"></i></b>`;
     }
     return o;
   };
+  // The entrance only plays when the birthday starts while the screensaver is open (midnight, or a date
+  // changed in HA). If it is already a birthday when the page loads, everything is shown straight away.
+  let bdKnown = false;
   const renderBirthday = () => {
+    if (!BIRTHDAYS.some((id) => S[id])) return; // no data yet (first load without cache)
     const n = new Date();
     const isToday = (id) => { const a = (S[id] || {}).a || {}; return a.month === n.getMonth() + 1 && a.day === n.getDate(); };
     const on = BIRTHDAYS.some(isToday); const dogs = on && isToday(DOG_BIRTHDAY);
+    const entrance = bdKnown; bdKnown = true;
     const key = on ? (dogs ? 'dogs' : 'confetti') : '';
-    if (key !== fxKey) { fxKey = key; $('fx').innerHTML = on ? confetti(dogs) : ''; }
-    $('ss').classList.toggle('bd', on);
+    if (key !== fxKey) { fxKey = key; $('fx').innerHTML = on ? confetti(dogs, entrance) : ''; }
+    const ss = $('ss');
+    if (!on) { ss.classList.remove('bd'); return; }
+    if (ss.classList.contains('bd')) return;
+    if (entrance) { setTimeout(() => ss.classList.add('bd'), 50); return; }
+    ss.classList.add('instant', 'bd');
+    requestAnimationFrame(() => requestAnimationFrame(() => ss.classList.remove('instant')));
   };
 
   // ---- Calendar --------------------------------------------------------------
