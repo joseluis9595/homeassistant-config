@@ -3,3 +3,7 @@
 
 !.gitignore
 !configuration.yaml
+
+# Static folder
+!www/
+!www/screensaver.html
